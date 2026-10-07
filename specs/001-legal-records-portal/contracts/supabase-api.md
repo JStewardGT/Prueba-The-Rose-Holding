@@ -1,123 +1,91 @@
 # Contract: Supabase Client Operations & Interface Definitions
 
-**Feature**: `001-legal-records-portal` | **Date**: 2026-10-06
-
-This contract documents the interface contracts between the React application and the Supabase BaaS layer, ensuring strict adherence to Core Principle I (RLS) and Core Principle II (Direct BaaS consumption).
+**Feature**: `001-legal-records-portal` | **Date**: 2026-10-07
 
 ## 1. Authentication Operations Contract
 
-### `signUp(email, password)`
-- **Input**:
-  ```json
-  {
-    "email": "abogado@theroseholding.com",
-    "password": "SecurePassword123!"
-  }
-  ```
-- **Supabase Call**: `supabase.auth.signUp({ email, password })`
-- **Output (Success)**:
-  ```json
-  {
-    "user": {
-      "id": "e3a89344-913a-4be2-a5e2-e1d1f053229b",
-      "email": "abogado@theroseholding.com"
-    },
-    "session": { "access_token": "..." },
-    "error": null
-  }
-  ```
-- **Output (Failure & Error Translation)**:
-  - If user exists: Returns friendly error `"El correo ya se encuentra registrado."`
-  - If weak password: Returns `"La contraseña debe tener al menos 6 caracteres."`
-
-### `signInWithPassword(email, password)`
-- **Input**: `{ email, password }`
-- **Supabase Call**: `supabase.auth.signInWithPassword({ email, password })`
-- **Output (Failure & Error Translation)**:
-  - Invalid credentials: `"Credenciales incorrectas. Verifique su correo y contraseña."`
-
-### `signOut()`
-- **Supabase Call**: `supabase.auth.signOut()`
-- **Result**: Clears local session token, redirects to `/`.
+- `signUp(email, password)`: Creates account with auto-confirm and immediate session fallback.
+- `signInWithPassword(email, password)`: Logs in returning user profile.
+- `signOut()`: Terminates session and invalidates tokens.
 
 ---
 
 ## 2. Legal Records Data Contract
 
-### `fetchRecords(userId)`
+- `fetchRecords()`: `supabase.from('legal_records').select('*').order('created_at', { ascending: false })`
+- `createRecord(newRecord)`: Inserts record with `user_id = user.id`.
+- `deleteRecord(recordId)`: Deletes record owned by user.
+
+---
+
+## 3. Case Updates (Novedades Procesales) Contract (New)
+
+### `fetchCaseUpdates(caseId)`
 - **Supabase Query**:
   ```javascript
   const { data, error } = await supabase
-    .from('legal_records')
+    .from('case_updates')
     .select('*')
+    .eq('case_id', caseId)
+    .order('event_date', { ascending: false })
     .order('created_at', { ascending: false });
   ```
-- **Output**: Array of `LegalRecord` objects owned by the authenticated user. Due to RLS, Supabase automatically filters to `auth.uid() = user_id`.
+- **Output**: Array of `CaseUpdate` objects associated with the given case and current user.
 
-### `createRecord(newRecord)`
+### `createCaseUpdate(newUpdate)`
 - **Input**:
   ```json
   {
-    "case_title": "Fusión Societaria Inversiones Andina",
-    "client_name": "Corporación Andina S.A.",
-    "category": "Corporativo",
-    "notes": "Revisión de acuerdos estatutarios y cláusulas de confidencialidad."
+    "case_id": "f8c84106-c192-4b5c-9151-bd9d40053211",
+    "title": "Notificación de Admisión de Demanda",
+    "event_date": "2026-10-05",
+    "description": "Se recibe auto admisorio de la demanda por parte del juzgado civil.",
+    "response_days": 3
   }
   ```
 - **Validation**:
-  - `case_title`: String, trimmed length > 0.
-  - `client_name`: String, trimmed length > 0.
-  - `category`: String, must be strictly one of `['Corporativo', 'Litigio', 'Laboral']`.
+  - `case_id`: UUID valid.
+  - `title`: Non-empty trimmed string.
+  - `event_date`: Valid date string (`YYYY-MM-DD`), must be `<= CURRENT_DATE` (cannot be a future date).
+  - `description`: Non-empty trimmed string.
+  - `response_days`: Optional positive integer strictly `> 0` (or `null`/omitted). Keystrokes strictly filtered to digits `0-9` (blocking `-`, `+`, `e`, `E`, `.`).
+- **Validation Errors (Spanish UI feedback)**:
+  - Empty title: *"Por favor ingrese el título o hito procesal."*
+  - Empty or future date: *"La fecha del suceso no puede ser futura."*
+  - Non-positive response days: *"Los días para responder deben ser mayores a 0 días."*
+  - Empty description: *"Por favor describa la novedad procesal."*
 - **Supabase Mutation**:
   ```javascript
   const { data, error } = await supabase
-    .from('legal_records')
+    .from('case_updates')
     .insert([
       {
-        case_title: record.case_title.trim(),
-        client_name: record.client_name.trim(),
-        category: record.category,
-        notes: record.notes?.trim() || '',
-        user_id: user.id
+        case_id: update.case_id,
+        user_id: user.id,
+        title: update.title.trim(),
+        event_date: update.event_date,
+        description: update.description.trim(),
+        response_days: update.response_days ? parseInt(update.response_days, 10) : null
       }
     ])
     .select()
     .single();
   ```
-- **Output (Success)**: Newly created `LegalRecord` object with `id` and `created_at`.
 
-### `deleteRecord(recordId)`
-- **Input**: `recordId: string` (UUID)
+### `deleteCaseUpdate(updateId)`
+- **Input**: `updateId: string` (UUID)
 - **Supabase Mutation**:
   ```javascript
   const { error } = await supabase
-    .from('legal_records')
+    .from('case_updates')
     .delete()
-    .eq('id', recordId);
+    .eq('id', updateId);
   ```
-- **Security Check**: RLS policy ensures that if the record belongs to another user, 0 rows are deleted and no sensitive information is leaked.
 
 ---
 
-## 3. Realtime Channel Subscription Contract
+## 4. Realtime Channel Subscription Contract
 
-- **Channel Name**: `public:legal_records`
-- **Setup**:
-  ```javascript
-  const channel = supabase
-    .channel('legal_records_changes')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'legal_records'
-      },
-      (payload) => {
-        // payload.eventType: 'INSERT' | 'DELETE' | 'UPDATE'
-        // Dispatches to local state update handler
-      }
-    )
-    .subscribe();
-  ```
-- **Cleanup**: `supabase.removeChannel(channel)` invoked upon component unmount.
+- Channel for records: `supabase.channel('public:legal_records')`
+- Channel for updates: `supabase.channel('public:case_updates')`
+  - Subscribes to events on table `case_updates` with filter on `case_id`.

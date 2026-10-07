@@ -1,10 +1,13 @@
 import React from 'react';
 import { getCategoryBadgeStyle, formatDate } from '../lib/utils';
-import { Briefcase, User, Calendar, Trash2, FileText } from 'lucide-react';
+import { Briefcase, User, Calendar, Trash2, ArrowUpRight } from 'lucide-react';
 
-export function RecordCard({ record, onRequestDelete }) {
+export function RecordCard({ record, onSelectRecord, onRequestDelete }) {
   return (
-    <div className="group relative p-6 bg-[#111726]/80 hover:bg-[#131b2e] border border-slate-800/80 hover:border-slate-700/80 rounded-2xl transition-all duration-200 shadow-lg hover:shadow-xl hover:shadow-rose-950/10 flex flex-col justify-between">
+    <div
+      onClick={() => onSelectRecord && onSelectRecord(record)}
+      className="group relative p-6 bg-[#111726]/80 hover:bg-[#141d33] border border-slate-800/80 hover:border-rose-500/40 rounded-2xl transition-all duration-200 shadow-lg hover:shadow-xl hover:shadow-rose-950/20 flex flex-col justify-between cursor-pointer"
+    >
       <div>
         {/* Cabecera de la Tarjeta: Categoría y Acción */}
         <div className="flex items-center justify-between gap-2 mb-4">
@@ -16,19 +19,28 @@ export function RecordCard({ record, onRequestDelete }) {
             {record.category}
           </span>
 
-          <button
-            onClick={() => onRequestDelete(record)}
-            title="Eliminar Expediente"
-            className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRequestDelete(record);
+              }}
+              title="Eliminar Expediente"
+              className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Título del Caso */}
-        <h3 className="text-lg font-bold text-white group-hover:text-rose-300 transition-colors line-clamp-2 mb-2">
-          {record.case_title}
-        </h3>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h3 className="text-lg font-bold text-white group-hover:text-rose-300 transition-colors line-clamp-2">
+            {record.case_title}
+          </h3>
+          <ArrowUpRight className="w-4 h-4 text-slate-600 group-hover:text-rose-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0 mt-1" />
+        </div>
 
         {/* Nombre del Cliente */}
         <div className="flex items-center gap-2 text-slate-300 text-sm mb-4">
@@ -50,8 +62,8 @@ export function RecordCard({ record, onRequestDelete }) {
           <Calendar className="w-3.5 h-3.5" />
           <span>{formatDate(record.created_at)}</span>
         </div>
-        <span className="font-mono text-[10px] text-slate-600 truncate max-w-[80px]">
-          ID: {record.id.slice(0, 8)}
+        <span className="text-[11px] text-rose-400/80 font-medium group-hover:text-rose-300 transition-colors">
+          Ver seguimiento →
         </span>
       </div>
     </div>

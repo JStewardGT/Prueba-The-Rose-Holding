@@ -49,11 +49,22 @@ export function getCategoryBadgeStyle(category) {
 }
 
 /**
- * Formatea una fecha ISO a formato en español.
+ * Formatea una fecha ISO o YYYY-MM-DD a formato amigable en español.
  */
 export function formatDate(isoDate) {
   if (!isoDate) return '';
   try {
+    // Si viene solo fecha YYYY-MM-DD, evitar desfase de zona horaria
+    if (typeof isoDate === 'string' && isoDate.length === 10 && isoDate.includes('-')) {
+      const [year, month, day] = isoDate.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      return new Intl.DateTimeFormat('es-ES', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }).format(date);
+    }
+
     const date = new Date(isoDate);
     return new Intl.DateTimeFormat('es-ES', {
       day: '2-digit',
@@ -65,4 +76,53 @@ export function formatDate(isoDate) {
   } catch {
     return isoDate;
   }
+}
+
+/**
+ * Formatea y evalúa los días restantes para responder un término procesal.
+ */
+export function formatResponseDays(days) {
+  if (days === null || days === undefined || days === '') return null;
+  const num = parseInt(days, 10);
+  if (isNaN(num)) return null;
+
+  if (num === 0) {
+    return {
+      text: 'Vence hoy',
+      badgeClass: 'bg-red-500/20 text-red-300 border border-red-500/40 animate-pulse',
+      isUrgent: true,
+    };
+  }
+  if (num <= 3) {
+    return {
+      text: `${num} ${num === 1 ? 'día hábil' : 'días hábiles'} para responder`,
+      badgeClass: 'bg-amber-500/20 text-amber-300 border border-amber-500/40',
+      isUrgent: true,
+    };
+  }
+  return {
+    text: `${num} días para responder`,
+    badgeClass: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40',
+    isUrgent: false,
+  };
+}
+
+/**
+ * Retorna la fecha local actual en formato YYYY-MM-DD (sin desfase UTC).
+ */
+export function getTodayDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Valida si una fecha dada en formato YYYY-MM-DD es posterior al día local actual.
+ */
+export function isFutureDate(dateString) {
+  if (!dateString) return false;
+  const today = getTodayDateString();
+  return dateString > today;
 }

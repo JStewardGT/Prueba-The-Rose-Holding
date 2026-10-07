@@ -1,93 +1,61 @@
-# Research & Technical Decisions: Legal Records Portal & Public Landing Experience
+# Research & Technical Decisions: Legal Records Portal & Process Tracking
 
-**Feature**: `001-legal-records-portal` | **Date**: 2026-10-06
+**Feature**: `001-legal-records-portal` | **Date**: 2026-10-07
 
 ## 1. Project Initialization & Frontend Tooling
 
-- **Decision**: Initialize React with Vite (`vite@latest` with React template) and Tailwind CSS (`tailwindcss@^3.4`, `postcss`, `autoprefixer`).
-- **Rationale**:
-  - Vite delivers near-instant HMR and fast build times, perfectly suited for the 48-hour timeline.
-  - Tailwind CSS provides utility-first rapid styling for corporate dark mode without overhead or external heavy UI libraries.
-  - Matches Core Principle II and the Tech Stack in `.specify/memory/constitution.md`.
-- **Alternatives Considered**:
-  - Next.js: Unnecessary server runtime complexity; constitution explicitly mandates direct client BaaS consumption and no intermediate servers.
-  - Create React App: Deprecated and sluggish build tooling.
+- **Decision**: React with Vite (`vite@^6.2`, React 18) and Tailwind CSS (`tailwindcss@^3.4`, `postcss`, `autoprefixer`).
+- **Rationale**: Vite delivers instant HMR and minimal bundle footprint. Corporate dark mode is implemented via clean Tailwind utility classes.
+- **Alternatives Considered**: Next.js (unnecessary server runtime complexity; prohibited by Constitution Principle II).
 
 ## 2. 3D WebGL Hero Experience & Memory Lifecycle Management
 
-- **Decision**: Three.js (`three`) directly managed via React's `useRef` and `useEffect` with explicit teardown.
-- **Rationale**:
-  - Direct Three.js avoids extra abstraction layers (like `@react-three/fiber` which adds dependency weight and potential React 19/18 version conflicts).
-  - WebGL nodal polygon mesh: A dynamic 3D geometric network with vertices connecting lines and nodes that gently rotate and react to pointer movements (`mousemove`).
-  - Strict lifecycle cleanup: In the cleanup callback of `useEffect`, explicitly invoke:
-    1. `window.removeEventListener('resize', ...)` & `window.removeEventListener('mousemove', ...)`
-    2. `cancelAnimationFrame(animationFrameId)`
-    3. `geometry.dispose()`, `material.dispose()`, `renderer.dispose()`
-    4. Remove canvas element from DOM container.
-- **Alternatives Considered**:
-  - `@react-three/fiber`: Heavier bundle, unnecessary complexity for a single interactive hero component.
-  - Pure CSS 3D: Insufficient visual fidelity for interactive nodal network mesh in dark mode.
+- **Decision**: Three.js (`three`) managed directly via `useRef` and `useEffect` with comprehensive teardown.
+- **Rationale**: Direct Three.js provides maximum performance for the interactive nodal mesh without additional abstraction libraries. Cleanup removes event listeners, cancels animation frames, disposes geometries, materials, and renderer context.
+- **Alternatives Considered**: `@react-three/fiber` (unnecessary package overhead for a single hero canvas).
 
-## 3. Interactive Iconography: Morphicons / Animated SVG Icons
+## 3. Interactive Iconography & Micro-Animations
 
-- **Decision**: Morphicons / Animated SVG Lucide iconography with interactive micro-animations on `:hover` (representing Security, Velocity, and Automation).
-- **Rationale**:
-  - `lucide-react` provides sleek corporate legal icons (ShieldCheck, Zap, Cog/Cpu) styled with Tailwind CSS transition classes (`group-hover:scale-110 group-hover:rotate-6 transition-all duration-300`) and Morphicon SVG animations.
-  - Lightweight, zero runtime overhead, 100% reliable across browsers.
-- **Alternatives Considered**:
-  - Heavy Lottie animations: High payload, external JSON files, potential performance bottleneck.
+- **Decision**: Lucide React + custom SVG Morphicons with animated transitions (e.g., `MorphiconEyeToggle` for password reveal/hide).
+- **Rationale**: Zero external CSS or JSON runtime dependencies. Native SVG micro-interactions feel snappy and modern.
 
 ## 4. Supabase Client Integration & Realtime Architecture
 
-- **Decision**: Use `@supabase/supabase-js` configured via single client instance in `/src/lib/supabase.js`. Realtime subscription via `supabase.channel('legal_records_changes').on('postgres_changes', ...)`.
-- **Rationale**:
-  - Satisfies Core Principle I (RLS) & Core Principle II (Direct BaaS consumption).
-  - Uses `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from `.env`.
-  - Realtime subscription listens to `INSERT` and `DELETE` events for the active user (`filter: user_id=eq.${user.id}`), keeping multiple sessions/tabs synchronized while the local state is updated immediately for optimal perceived performance.
-- **Alternatives Considered**:
-  - Polling every N seconds: Inefficient, high latency, wastes quota.
-  - Pure optimistic updates without Realtime: Fails multi-tab/device synchronization requirement.
+- **Decision**: Direct client `@supabase/supabase-js` without intermediate APIs.
+- **Channels**:
+  - `public:legal_records` for case mutations (INSERT, UPDATE, DELETE).
+  - `public:case_updates` for real-time process novedades (INSERT, UPDATE, DELETE).
+- **Rationale**: Satisfies Constitution Principle I (RLS) & Principle II (Direct BaaS). Keeps multi-tab sessions in sync immediately.
 
-## 5. Database Schema & RLS Policy Design (PostgreSQL)
+## 5. Process Tracking & Case Updates Architecture (New)
 
-- **Decision**: PostgreSQL table `public.legal_records` with strict RLS enabled:
-  ```sql
-  create table public.legal_records (
-    id uuid default gen_random_uuid() primary key,
-    user_id uuid references auth.users(id) on delete cascade not null default auth.uid(),
-    case_title text not null check (char_length(trim(case_title)) > 0),
-    client_name text not null check (char_length(trim(client_name)) > 0),
-    category text not null check (category in ('Corporativo', 'Litigio', 'Laboral')),
-    notes text default '',
-    created_at timestamptz default now() not null
-  );
+- **Decision**: Table `public.case_updates` with foreign key to `public.legal_records(id)` ON DELETE CASCADE, and `user_id` referencing `auth.users(id)` with `default auth.uid()`.
+- **Fields**:
+  - `id`: UUID primary key.
+  - `case_id`: UUID foreign key to `legal_records(id)`.
+  - `user_id`: UUID foreign key to `auth.users(id)`.
+  - `title`: String non-blank (e.g. "Demanda radicada en Rama Judicial").
+  - `event_date`: Date (date of occurrence).
+  - `description`: Text (full procedural context and notes).
+  - `response_days`: Integer nullable (business or calendar days allowed to respond).
+  - `created_at`: Timestamp.
+- **UI Navigation**:
+  - Clicking on any `RecordCard` navigates to `CaseDetailPage` passing the selected case (or loads by ID).
+  - Chronological timeline displaying cards for each update.
+  - Visual badges for response deadlines: shows days allowed and urgency indicators.
+  - Dedicated modal `CreateUpdateModal` to register new novedades with immediate update in timeline.
+  - Safe deletion modal for individual case updates.
+- **Rationale**: Satisfies User Story 5 and user requirements for procedural tracking while preserving strict multitenant RLS.
 
-  alter table public.legal_records enable row level security;
+## 6. Form Field Validation & Numeric Keystroke Interception (New)
 
-  create policy "Users can select own records"
-    on public.legal_records for select
-    to authenticated
-    using (auth.uid() = user_id);
-
-  create policy "Users can insert own records"
-    on public.legal_records for insert
-    to authenticated
-    with check (auth.uid() = user_id);
-
-  create policy "Users can delete own records"
-    on public.legal_records for delete
-    to authenticated
-    using (auth.uid() = user_id);
-  ```
-- **Rationale**:
-  - Satisfies Core Principle I (Strict RLS) and Core Principle V (Structured categories).
-  - Database check constraints enforce that `case_title` and `client_name` cannot be blank strings, complementing client-side validation.
-  - `user_id default auth.uid()` guarantees that client tampering cannot assign records to other users.
-
-## 6. Authentication Architecture & State Management
-
-- **Decision**: React `AuthContext` (`/src/context/AuthContext.jsx`) wrapping the app tree.
-  - Subscribes to `supabase.auth.onAuthStateChange((event, session) => ...)` to synchronize session.
-  - Exposes `user`, `session`, `loading`, `signUp({ email, password })`, `signIn({ email, password })`, `signOut()`.
-  - Private route guard (`ProtectedRoute.jsx`) redirects unauthenticated users to `/login` or opens the auth modal.
-  - Non-technical error mapping: Translates errors such as `Invalid login credentials` to `"Credenciales incorrectas. Verifique su correo y contraseña."`.
+- **Decision**: Multi-tier client-side validation combining active keystroke filtering (`onKeyDown`), value sanitization (`onChange`), declarative HTML5 constraints (`max={today}`), and pre-submission semantic checks with inline Spanish error messaging.
+- **Implementation Strategy**:
+  - **Numeric Fields (`response_days`)**:
+    - `onKeyDown`: Intercept and `e.preventDefault()` for disallowed characters (`-`, `+`, `e`, `E`, `.`, `,`). Allow control keys (`Backspace`, `Delete`, `Tab`, `ArrowLeft`, `ArrowRight`, `Enter`).
+    - `onChange`: Sanitize string to strictly allow digits only (`val.replace(/[^0-9]/g, '')`).
+    - Pre-submit validation: If provided (`value !== ''`), parse as integer and verify `Number(value) > 0`. If `0`, reject with message *"Los días para responder deben ser mayores a 0 días"*.
+  - **Date Field (`event_date`)**:
+    - HTML5 attribute `max={getTodayDateString()}` to restrict native date picker selection to the current date or earlier.
+    - Pre-submit validation: Compare selected `event_date` against `today` string (`YYYY-MM-DD`). If `event_date > today`, reject with message *"La fecha del suceso no puede ser futura"*.
+- **Rationale**: Prevents common input errors, avoids malformed numbers in PostgreSQL `integer` columns, and guarantees realistic chronological reporting.

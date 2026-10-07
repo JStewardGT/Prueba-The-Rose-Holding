@@ -1,4 +1,4 @@
-# Tasks: Legal Records Portal & Public Landing Experience
+# Tasks: Legal Records Portal & Process Tracking
 
 **Feature**: `001-legal-records-portal` | **Branch**: `001-legal-records-portal`
 **Input Documents**: [spec.md](./spec.md), [plan.md](./plan.md), [data-model.md](./data-model.md), [research.md](./research.md), [contracts/supabase-api.md](./contracts/supabase-api.md), [quickstart.md](./quickstart.md)
@@ -97,7 +97,26 @@
 
 ---
 
-## Phase 7: Polish & Cross-Cutting Concerns
+## Phase 7: User Story 5 - Seguimiento Procesal, Cronología y Novedades por Caso (Priority: P2) 🚀 NUEVA FASE
+
+**Goal**: Allow users to click on any case card in the dashboard to open a dedicated case detail page with its procedural context, timeline of novedades (milestones), a centered creation modal for novedades (title, date, description, response days), and secure deletion.
+
+**Independent Test**: In dashboard, click any case card; verify navigation to `CaseDetailPage`; verify case summary header; open "Nueva Novedad" modal; enter date (e.g. 2026-10-05), title ("Demanda radicada"), description, and response days (e.g. 3); verify immediate creation in timeline; verify badge shows response time; delete novelty with confirmation; and return to dashboard with back button.
+
+### Implementation for User Story 5
+
+- [x] T029 [P] [US5] Create PostgreSQL database migration for `public.case_updates` with check constraints (`title`, `description`, `response_days >= 0`), strict RLS policies (`auth.uid() = user_id`), indexes, and realtime publication in `./supabase/migrations/20261007_create_case_updates.sql`.
+- [x] T030 [P] [US5] Add deadline helper formatting and urgent badge styling for `response_days` in `./src/lib/utils.js`.
+- [x] T031 [US5] Create centered modal dialog component `CreateUpdateModal` with form fields (Título, Fecha del Suceso, Descripción, Días para responder) and Supabase insertion handler (`case_id`, `auth.uid() = user_id`) in `./src/components/CreateUpdateModal.jsx`.
+- [x] T032 [P] [US5] Make `RecordCard` clickable to navigate to case detail while keeping the delete button independent and stopPropagation-isolated in `./src/components/RecordCard.jsx`.
+- [x] T033 [US5] Implement dedicated view `CaseDetailPage` displaying case header, back button, timeline of novedades in chronological order, response days badges, Realtime channel subscription (`public:case_updates`), and delete confirmation in `./src/pages/CaseDetailPage.jsx`.
+- [x] T034 [US5] Update application routing and state in `./src/App.jsx` to support navigation to `case-detail` with selected case context and return to `dashboard`.
+
+**Checkpoint**: User Story 5 is fully functional with complete case chronological tracking, deadline badges, and RLS isolation.
+
+---
+
+## Phase 8: Polish & Cross-Cutting Concerns
 
 **Purpose**: Quality assurance, build verification, responsive design checks, and end-to-end validation.
 
@@ -105,6 +124,24 @@
 - [x] T026 [P] Verify responsive layout across mobile and desktop breakpoints in `./src/pages/LandingPage.jsx` and `./src/pages/DashboardPage.jsx`.
 - [x] T027 Execute production build verification via `npm run build` and resolve any bundling or syntax issues.
 - [x] T028 Update project documentation and setup instructions in `./README.md`.
+- [x] T035 Apply database migration `20261007_create_case_updates.sql` via `supabase db push` to remote Supabase project.
+- [x] T036 Execute production build verification via `npm run build` and test responsive layout on `CaseDetailPage.jsx`.
+
+---
+
+## Phase 9: Form Field Validation & Input Restrictions (Priority: P2) 🚀 NUEVA FASE
+
+**Goal**: Implement strict input filtering, calendar date constraints, and semantic range validations in `CreateUpdateModal` to prevent typing non-digit characters (`-`, `+`, `e`, `E`, `.`), enforce `response_days > 0` when specified, and restrict `event_date <= today`.
+
+**Independent Test**: Open "Nueva Novedad" modal; attempt to type `-`, `+`, `e`, `.` in "Días para responder" (verify characters are blocked and rejected); attempt to enter `0` days and submit (verify rejection with message "Los días para responder deben ser mayores a 0 días"); check calendar picker for "Fecha del suceso" (verify dates after today are disabled via `max={today}`); and attempt manual submission with future date (verify rejection with message "La fecha del suceso no puede ser futura").
+
+### Implementation for User Story 5 Refinements
+
+- [x] T037 [US5] Implement strict numeric keystroke interception (blocking '-', '+', 'e', 'E', '.', ',') onKeyDown and regex digit sanitization onChange in `response_days` input in `./src/components/CreateUpdateModal.jsx`.
+- [x] T038 [US5] Implement `max={today}` calendar constraint and future date rejection validation for `event_date` in `./src/components/CreateUpdateModal.jsx`.
+- [x] T039 [US5] Implement pre-submission range validation enforcing `response_days > 0` when provided, displaying Spanish error message "Los días para responder deben ser mayores a 0 días" in `./src/components/CreateUpdateModal.jsx`.
+- [x] T040 [P] [US5] Add date formatting and validation helper functions in `./src/lib/utils.js`.
+- [x] T041 Execute production build verification via `npm run build` and validate Scenario D in `./specs/001-legal-records-portal/quickstart.md`.
 
 ---
 
@@ -113,45 +150,19 @@
 ### Phase Dependencies
 
 ```
-Phase 1: Setup (T001-T006)
+Phases 1 - 6 (Completadas)
        │
        ▼
-Phase 2: Foundational (T007-T011)  [CRITICAL GATE]
+Phase 7: US5 - Seguimiento Procesal y Novedades (T029 - T034) [Completada]
        │
-       ├─────────────────────────────────┐
-       ▼                                 ▼
-Phase 3: US1 - Landing & 3D (T012-T015) Phase 4: US2 - Auth & Routes (T016-T018)
-       │                                 │
-       └────────────────┬────────────────┘
-                        ▼
-       Phase 5: US3 - Creación Expedientes (T019-T020)
-                        │
-                        ▼
-       Phase 6: US4 - Listado, Filtros, Realtime & Borrado (T021-T024)
-                        │
-                        ▼
-       Phase 7: Polish & Validation (T025-T028)
+       ▼
+Phase 8: Polish & Verificación Previa (T035 - T036) [Completada]
+       │
+       ▼
+Phase 9: Validaciones Estrictas de Formulario (T037 - T041) [En curso]
 ```
 
-### Parallel Opportunities
+### Parallel Opportunities for User Story 5 Refinements
 
-- **Phase 1**: T003, T004, T005, T006 can run in parallel.
-- **Phase 2**: T008, T009, T011 can run in parallel once T007 is initialized.
-- **Phase 3 & 4**: T012, T014 can be developed in parallel with T016.
-- **Phase 6**: T021, T022, T023 can be built concurrently before integration into `DashboardPage` (T024).
-- **Phase 7**: T026 can run in parallel with T028.
-
----
-
-## Implementation Strategy
-
-### MVP First (Phases 1, 2 & 3)
-1. Complete Setup and Foundational infrastructure.
-2. Complete User Story 1 (Landing Page + Three.js 3D Hero + Feature Cards).
-3. Validate independent landing experience.
-
-### Incremental Delivery
-1. Add User Story 2 (AuthModal + Protected Routes + Session Context).
-2. Add User Story 3 (Create Record Modal + Validations).
-3. Add User Story 4 (Dashboard + Realtime Subscription + Category Filtering + Secure Deletion).
-4. Run validation against `quickstart.md`.
+- T040 (helpers en utils.js) y T037/T038/T039 en `CreateUpdateModal.jsx` pueden desarrollarse de forma conjunta.
+- T041 valida la compilación y prueba el Escenario D de `quickstart.md`.

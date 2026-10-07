@@ -39,6 +39,23 @@ export function Navbar({ currentView, onNavigate, onOpenAuth }) {
                     <LayoutDashboard className="w-4 h-4 text-rose-400" />
                     <span>Mi Dashboard</span>
                   </button>
+                ) : currentView === 'case-detail' ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onNavigate('dashboard')}
+                      className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 rounded-xl transition shadow-sm"
+                    >
+                      <LayoutDashboard className="w-4 h-4 text-rose-400" />
+                      <span>Expedientes</span>
+                    </button>
+                    <button
+                      onClick={() => onNavigate('landing')}
+                      className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-800 border border-slate-700/60 rounded-xl transition"
+                    >
+                      <Home className="w-4 h-4" />
+                      <span className="hidden sm:inline">Inicio</span>
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={() => onNavigate('landing')}

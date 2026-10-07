@@ -1,6 +1,6 @@
-# Data Model & Storage Design: Legal Records Portal
+# Data Model & Storage Design: Legal Records & Process Tracking
 
-**Feature**: `001-legal-records-portal` | **Date**: 2026-10-06
+**Feature**: `001-legal-records-portal` | **Date**: 2026-10-07
 
 ## 1. Database Schema (PostgreSQL on Supabase)
 
@@ -18,82 +18,77 @@ Represents an individual legal case/file managed by an authenticated legal pract
 | `notes` | `text` | `NULLABLE` | `''` | Summary, procedural notes, or case comments |
 | `created_at` | `timestamptz` | `NOT NULL` | `now()` | Timestamp of record creation |
 
+---
+
+### Table: `public.case_updates` (New)
+
+Represents individual process milestones, judicial responses, or chronological updates for a specific legal case.
+
+| Column | Type | Constraints | Default | Description |
+|---|---|---|---|---|
+| `id` | `uuid` | `PRIMARY KEY` | `gen_random_uuid()` | Unique identifier for the update |
+| `case_id` | `uuid` | `NOT NULL`, `REFERENCES public.legal_records(id) ON DELETE CASCADE` | None | Reference to parent case |
+| `user_id` | `uuid` | `NOT NULL`, `REFERENCES auth.users(id) ON DELETE CASCADE` | `auth.uid()` | Record owner (RLS verification) |
+| `title` | `text` | `NOT NULL`, `CHECK (char_length(trim(title)) > 0)` | None | Title/milestone of the update |
+| `event_date` | `date` | `NOT NULL`, `CHECK (event_date <= CURRENT_DATE)` | `CURRENT_DATE` | Date when the milestone occurred (max today) |
+| `description` | `text` | `NOT NULL`, `CHECK (char_length(trim(description)) > 0)` | None | Detailed context and notes |
+| `response_days` | `integer` | `CHECK (response_days IS NULL OR response_days > 0)` | `NULL` | Optional days allowed to respond (strictly > 0) |
+| `created_at` | `timestamptz` | `NOT NULL` | `now()` | Creation timestamp |
+
 ### Indexes
 
 ```sql
--- Index on user_id to optimize RLS evaluation and user-scoped list queries
-create index idx_legal_records_user_id on public.legal_records (user_id);
+-- Indexes on legal_records
+create index if not exists idx_legal_records_user_id on public.legal_records (user_id);
+create index if not exists idx_legal_records_user_category on public.legal_records (user_id, category);
+create index if not exists idx_legal_records_user_created on public.legal_records (user_id, created_at desc);
 
--- Composite index on user_id and category for rapid category filtering
-create index idx_legal_records_user_category on public.legal_records (user_id, category);
-
--- Composite index on user_id and created_at for reverse chronological ordering
-create index idx_legal_records_user_created on public.legal_records (user_id, created_at desc);
+-- Indexes on case_updates
+create index if not exists idx_case_updates_case_id on public.case_updates (case_id);
+create index if not exists idx_case_updates_user_id on public.case_updates (user_id);
+create index if not exists idx_case_updates_event_date on public.case_updates (case_id, event_date desc);
 ```
 
 ## 2. Row Level Security (RLS) Policies
 
-RLS is strictly mandatory (Core Principle I).
+Both tables strictly enforce RLS (Constitution Principle I).
 
 ```sql
--- 1. Enable RLS
-alter table public.legal_records enable row level security;
+-- RLS on case_updates
+alter table public.case_updates enable row level security;
 
--- 2. Select policy: authenticated user can only read their own records
-create policy "Users can select own records"
-  on public.legal_records for select
+create policy "Users can select own case updates"
+  on public.case_updates for select
   to authenticated
   using (auth.uid() = user_id);
 
--- 3. Insert policy: authenticated user can only insert records with their own user_id
-create policy "Users can insert own records"
-  on public.legal_records for insert
+create policy "Users can insert own case updates"
+  on public.case_updates for insert
   to authenticated
   with check (auth.uid() = user_id);
 
--- 4. Delete policy: authenticated user can only delete their own records
-create policy "Users can delete own records"
-  on public.legal_records for delete
+create policy "Users can delete own case updates"
+  on public.case_updates for delete
   to authenticated
   using (auth.uid() = user_id);
 
--- 5. Enable Realtime for legal_records table
-alter publication supabase_realtime add table public.legal_records;
+-- Publication for Realtime
+alter publication supabase_realtime add table public.case_updates;
 ```
 
-## 3. Entity State Transitions & Lifecycle
+## 3. Entity Relationships & State Transitions
 
 ```
-[ Formulario Modal ]
-        │
-        ▼ (Validación cliente: case_title != '', client_name != '', category válida)
-[ Inserción Supabase ]
-        │
-        ├─► [ RLS Check: auth.uid() == user_id ]
-        │         │
-        │         ├─► [ Rechazo / Error: RLS Violation o DB Constraint ]
-        │         │
-        │         └─► [ Éxito: Registro persistido en PostgreSQL ]
-        │                   │
-        │                   ├─► Evento Supabase Realtime (INSERT)
-        │                   └─► Actualización estado React
-        │
-[ Dashboard List ] ───► [ Filtro en memoria: 'Todas' | 'Corporativo' | 'Litigio' | 'Laboral' ]
-        │
-        ▼ (Acción de Eliminar con Confirmación)
-[ Eliminación Supabase ]
-        │
-        ├─► [ RLS Check: auth.uid() == user_id ]
-        │         │
-        │         └─► [ Éxito: Registro eliminado ]
-        │                   │
-        │                   ├─► Evento Supabase Realtime (DELETE)
-        │                   └─► Actualización estado React
-        ▼
-[ Registro Removido ]
+[ Usuario (auth.users) ]
+      │
+      ├─────── 1:N ────────► [ Legal Record (public.legal_records) ]
+      │                                    │
+      │                                    └─────── 1:N ────────► [ Case Update (public.case_updates) ]
+      │                                                                  │
+      └─────────────────────────────────── 1:N ──────────────────────────┘
 ```
 
-## 4. Frontend Data Contracts & Types
+## 4. Frontend Data Types & Interfaces
 
 ```typescript
 export type LegalCategory = 'Corporativo' | 'Litigio' | 'Laboral';
@@ -108,10 +103,22 @@ export interface LegalRecord {
   created_at: string;
 }
 
-export interface NewLegalRecordInput {
-  case_title: string;
-  client_name: string;
-  category: LegalCategory;
-  notes?: string;
+export interface CaseUpdate {
+  id: string;
+  case_id: string;
+  user_id: string;
+  title: string;
+  event_date: string; // YYYY-MM-DD
+  description: string;
+  response_days: number | null;
+  created_at: string;
+}
+
+export interface NewCaseUpdateInput {
+  case_id: string;
+  title: string;
+  event_date: string;
+  description: string;
+  response_days?: number | null;
 }
 ```

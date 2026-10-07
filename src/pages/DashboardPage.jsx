@@ -16,7 +16,7 @@ import {
   FolderPlus,
 } from 'lucide-react';
 
-export function DashboardPage() {
+export function DashboardPage({ onSelectRecord }) {
   const { user } = useAuth();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -256,6 +256,7 @@ export function DashboardPage() {
               <RecordCard
                 key={record.id}
                 record={record}
+                onSelectRecord={onSelectRecord}
                 onRequestDelete={(rec) => setRecordToDelete(rec)}
               />
             ))}
