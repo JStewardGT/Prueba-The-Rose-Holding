@@ -77,21 +77,29 @@ export function Hero3D() {
     let targetX = 0;
     let targetY = 0;
 
-    const windowHalfX = width / 2;
-    const windowHalfY = height / 2;
+    let windowHalfX = width / 2;
+    let windowHalfY = height / 2;
 
     const onPointerMove = (event) => {
       mouseX = event.clientX - windowHalfX;
       mouseY = event.clientY - windowHalfY;
     };
 
+    const onMouseLeave = () => {
+      mouseX = 0;
+      mouseY = 0;
+    };
+
     window.addEventListener('mousemove', onPointerMove, { passive: true });
+    document.addEventListener('mouseleave', onMouseLeave);
 
     // 5. Redimensionamiento responsivo
     const onResize = () => {
       if (!container) return;
       width = container.clientWidth;
       height = container.clientHeight;
+      windowHalfX = width / 2;
+      windowHalfY = height / 2;
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
@@ -108,11 +116,14 @@ export function Hero3D() {
       targetX += (mouseX - targetX) * 0.05;
       targetY += (mouseY - targetY) * 0.05;
 
-      // Rotación autónoma combinada con desplazamiento del cursor
-      group.rotation.x += 0.0015;
-      group.rotation.y += 0.002;
-      group.rotation.y += targetX * 0.0002;
-      group.rotation.x += targetY * 0.0002;
+      // Velocidad máxima permitida por desplazamiento del ratón para evitar aceleraciones excesivas
+      const MAX_MOUSE_SPEED = 0.006;
+      const mouseSpeedX = Math.max(-MAX_MOUSE_SPEED, Math.min(MAX_MOUSE_SPEED, targetY * 0.000025));
+      const mouseSpeedY = Math.max(-MAX_MOUSE_SPEED, Math.min(MAX_MOUSE_SPEED, targetX * 0.000025));
+
+      // Rotación autónoma combinada con desplazamiento del cursor acotado a velocidad máxima
+      group.rotation.x += 0.0015 + mouseSpeedX;
+      group.rotation.y += 0.002 + mouseSpeedY;
 
       innerMesh.rotation.x -= 0.002;
       innerMesh.rotation.y -= 0.003;
@@ -126,6 +137,7 @@ export function Hero3D() {
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('mousemove', onPointerMove);
+      document.removeEventListener('mouseleave', onMouseLeave);
       window.removeEventListener('resize', onResize);
 
       // Liberar geometrías

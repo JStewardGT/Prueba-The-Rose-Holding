@@ -1,7 +1,7 @@
 import React from 'react';
-import { ShieldCheck, Zap, Cpu, Lock, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Zap, Cpu, Lock } from 'lucide-react';
 
-export function FeatureCards({ onExploreClick }) {
+export function FeatureCards() {
   const features = [
     {
       title: 'Seguridad Multitenant RLS',
@@ -57,7 +57,7 @@ export function FeatureCards({ onExploreClick }) {
             return (
               <div
                 key={index}
-                className={`group relative p-8 rounded-2xl bg-gradient-to-b ${feature.bgColor} bg-[#101626]/60 border ${feature.borderColor} transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-rose-950/20 flex flex-col justify-between`}
+                className={`group relative p-8 rounded-2xl bg-gradient-to-b ${feature.bgColor} bg-[#101626]/60 border ${feature.borderColor} transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-rose-950/20 flex flex-col`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-6">
@@ -73,14 +73,9 @@ export function FeatureCards({ onExploreClick }) {
                   <h3 className="text-xl font-bold text-white mb-3 group-hover:text-rose-300 transition-colors">
                     {feature.title}
                   </h3>
-                  <p className="text-slate-400 text-sm leading-relaxed mb-6">
+                  <p className="text-slate-400 text-sm leading-relaxed">
                     {feature.description}
                   </p>
-                </div>
-
-                <div className="pt-4 border-t border-slate-800/60 flex items-center text-xs font-semibold text-rose-400 group-hover:text-rose-300 transition-colors">
-                  <span>Conocer más</span>
-                  <ArrowRight className="w-3.5 h-3.5 ml-1.5 transform group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
             );

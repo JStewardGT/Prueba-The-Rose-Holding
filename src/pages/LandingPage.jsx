@@ -84,7 +84,7 @@ export function LandingPage({ onNavigate, onOpenAuth }) {
       </section>
 
       {/* SECCIÓN DE CARACTERÍSTICAS */}
-      <FeatureCards onExploreClick={() => onOpenAuth('signup')} />
+      <FeatureCards />
 
       {/* FOOTER CORPORATIVO */}
       <footer className="relative z-10 border-t border-slate-900 bg-[#06090e] py-12">
